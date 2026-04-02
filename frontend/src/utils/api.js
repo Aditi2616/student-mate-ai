@@ -1,8 +1,11 @@
 import axios from 'axios';
 
-// Create an axios instance
+// ✅ FIXED: Render ki link yahan add karo
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://student-mate-backend.onrender.com';
+
 const api = axios.create({
-  baseURL: 'http://localhost:5000/api',
+  // Base URL ko dynamic bana diya
+  baseURL: `${API_BASE_URL}/api`,
 });
 
 // Add a request interceptor to add the auth token to requests
