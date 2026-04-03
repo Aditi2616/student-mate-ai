@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import Sidebar from '../components/Sidebar';
-import { Plus, Trash2, Zap, Target, Trophy, Calculator, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, Zap, Target, Trophy, Calculator, AlertCircle, CheckCircle } from 'lucide-react';
 
 const GPAPredictor = () => {
   const [subjects, setSubjects] = useState([]);
@@ -10,12 +10,14 @@ const GPAPredictor = () => {
     name: '', mid: '', midTotal: '30', end: '0', endTotal: '45', credits: '4', attended: '', totalClasses: '' 
   });
 
+  // ✅ Global API URL (Render)
+  const API_URL = import.meta.env.VITE_API_URL || 'https://student-mate-backend.onrender.com';
+
   useEffect(() => { fetchSubjects(); }, []);
 
   const fetchSubjects = async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/subjects');
-      // Har subject ke liye simulation 'end' marks 0 se start honge
+      const res = await axios.get(`${API_URL}/api/subjects`);
       setSubjects(res.data.map(s => ({ ...s, end: 0 })));
     } catch (err) { console.error("Fetch Error:", err); }
   };
@@ -23,7 +25,7 @@ const GPAPredictor = () => {
   const addSubject = async () => {
     if (!input.name || !input.mid) return alert("Subject Name aur Mid marks bharo bhai!");
     try {
-      const res = await axios.post('http://localhost:5000/api/subjects', input);
+      const res = await axios.post(`${API_URL}/api/subjects`, input);
       setSubjects([{ ...res.data, end: 0 }, ...subjects]);
       setInput({ name: '', mid: '', midTotal: '30', end: '0', endTotal: '45', credits: '4', attended: '', totalClasses: '' });
     } catch (err) { console.error("Add Error:", err); }
@@ -31,24 +33,41 @@ const GPAPredictor = () => {
 
   const deleteSubject = async (id) => {
     try {
-      await axios.delete(`http://localhost:5000/api/subjects/${id}`);
+      await axios.delete(`${API_URL}/api/subjects/${id}`);
       setSubjects(subjects.filter(s => s._id !== id));
     } catch (err) { console.error("Delete Error:", err); }
   };
 
-  // 75% Attendance Alert Logic
+  // 🎯 SMART ATTENDANCE LOGIC (75% Criteria)
   const getAttStatus = (att, tot) => {
     const a = parseInt(att) || 0;
     const t = parseInt(tot) || 0;
-    if (t === 0) return { p: 0, msg: "No Classes", safe: true };
+    const target = 75; // 75% Criteria
+
+    if (t === 0) return { p: 0, msg: "No Classes Yet", color: "text-slate-400", bg: "bg-slate-50", safe: true };
+    
     const perc = (a / t) * 100;
 
-    if (perc >= 75) {
+    if (perc >= target) {
+      // Formula for safe bunks: (Attended - 0.75 * Total) / 0.75
       const bks = Math.floor((a - (0.75 * t)) / 0.75);
-      return { p: perc.toFixed(1), msg: bks > 0 ? `${bks} Bunks Left` : "On Edge", safe: true };
+      return { 
+        p: perc.toFixed(1), 
+        msg: bks > 0 ? `${bks} Bunks Safe! 😎` : "On Edge (Don't Bunk)", 
+        color: "text-green-600", 
+        bg: "bg-green-50",
+        safe: true 
+      };
     } else {
+      // Formula for required classes: (0.75 * Total - Attended) / 0.25
       const req = Math.ceil((0.75 * t - a) / 0.25);
-      return { p: perc.toFixed(1), msg: `Attend ${req} more classes`, safe: false };
+      return { 
+        p: perc.toFixed(1), 
+        msg: `Attend next ${req} classes! ⚠️`, 
+        color: "text-red-600", 
+        bg: "bg-red-50",
+        safe: false 
+      };
     }
   };
 
@@ -73,13 +92,13 @@ const GPAPredictor = () => {
       <Sidebar />
       <div className="flex-1 p-8">
         {/* BIG ANALYTICS CARDS */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 text-indigo-900">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-indigo-600 p-8 rounded-[2.5rem] text-white shadow-2xl flex items-center justify-between">
             <div><p className="text-[10px] font-black opacity-60 uppercase tracking-widest mb-1">Simulated CPI</p><h2 className="text-6xl font-black">{calculateCPI()}</h2></div>
             <Calculator size={56} className="opacity-20" />
           </div>
           <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 flex items-center justify-between shadow-sm">
-            <div><p className="text-[10px] font-black text-slate-400 uppercase">Target</p>
+            <div><p className="text-[10px] font-black text-slate-400 uppercase">Target CPI</p>
             <input type="number" step="0.1" className="text-4xl font-black text-indigo-600 outline-none w-24 bg-transparent" value={targetCpi} onChange={(e) => setTargetCpi(e.target.value)} /></div>
             <Target size={36} className="text-slate-100" />
           </div>
@@ -93,16 +112,16 @@ const GPAPredictor = () => {
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
           {/* ENTRY FORM */}
           <div className="bg-white p-8 rounded-[3rem] shadow-xl border border-slate-50 h-fit sticky top-8">
-            <h3 className="font-black text-xl mb-8 text-slate-800 flex items-center gap-3"><Zap size={20} className="text-indigo-600"/> New Entry</h3>
+            <h3 className="font-black text-xl mb-8 text-slate-800 flex items-center gap-3"><Zap size={20} className="text-indigo-600"/> Add Subject</h3>
             <div className="space-y-5">
-              <input placeholder="Subject Name" className="w-full p-5 bg-slate-50 rounded-[1.5rem] outline-none font-bold text-slate-700" value={input.name} onChange={e => setInput({...input, name: e.target.value})}/>
+              <input placeholder="Subject Name (e.g. DSA)" className="w-full p-5 bg-slate-50 rounded-[1.5rem] outline-none font-bold text-slate-700" value={input.name} onChange={e => setInput({...input, name: e.target.value})}/>
               <div className="grid grid-cols-2 gap-4">
                 <input type="number" placeholder="Mid Score" className="p-5 bg-slate-50 rounded-[1.5rem] outline-none" value={input.mid} onChange={e => setInput({...input, mid: e.target.value})}/>
                 <input type="number" placeholder="Credits" className="p-5 bg-slate-50 rounded-[1.5rem] outline-none font-bold" value={input.credits} onChange={e => setInput({...input, credits: e.target.value})}/>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <input type="number" placeholder="Attended" className="p-5 bg-slate-50 rounded-[1.5rem] outline-none text-sm" value={input.attended} onChange={e => setInput({...input, attended: e.target.value})}/>
-                <input type="number" placeholder="Total" className="p-5 bg-slate-50 rounded-[1.5rem] outline-none text-sm" value={input.totalClasses} onChange={e => setInput({...input, totalClasses: e.target.value})}/>
+                <input type="number" placeholder="Classes Attended" className="p-5 bg-slate-50 rounded-[1.5rem] outline-none text-sm" value={input.attended} onChange={e => setInput({...input, attended: e.target.value})}/>
+                <input type="number" placeholder="Total Classes" className="p-5 bg-slate-50 rounded-[1.5rem] outline-none text-sm" value={input.totalClasses} onChange={e => setInput({...input, totalClasses: e.target.value})}/>
               </div>
               <button onClick={addSubject} className="w-full bg-slate-900 text-white py-5 rounded-[1.5rem] font-black hover:bg-indigo-600 transition-all shadow-lg active:scale-95">Add Subject</button>
             </div>
@@ -118,9 +137,9 @@ const GPAPredictor = () => {
                   <div className="flex-1">
                     <div className="flex items-center gap-4">
                       <h4 className="font-black text-slate-800 text-2xl tracking-tighter uppercase">{sub.name}</h4>
-                      <div className={`px-4 py-1.5 rounded-full flex items-center gap-2 ${att.safe ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600 animate-pulse'}`}>
-                        {!att.safe && <AlertCircle size={14}/>}
-                        <span className="text-[11px] font-black uppercase tracking-widest">{att.p}% Att — {att.msg}</span>
+                      <div className={`px-4 py-1.5 rounded-full flex items-center gap-2 ${att.bg} ${att.color}`}>
+                        {!att.safe ? <AlertCircle size={14}/> : <CheckCircle size={14}/>}
+                        <span className="text-[11px] font-black uppercase tracking-widest">{att.p}% — {att.msg}</span>
                       </div>
                     </div>
                     

@@ -1,27 +1,46 @@
 import React, { useState } from 'react';
 import Sidebar from './components/Sidebar'; 
-import { Percent, MessageSquare, Sun, Moon, UserCircle } from 'lucide-react';
+import { Percent, MessageSquare, Sun, Moon, UserCircle, AlertCircle, CheckCircle } from 'lucide-react';
 
 const Dashboard = () => {
   const [darkMode, setDarkMode] = useState(false);
   const [attendance, setAttendance] = useState({ present: '', total: '' });
 
-  // Quick Attendance Logic for Dashboard
-  const getBriefStatus = () => {
+  // 🎯 Detailed Attendance Logic
+  const getDetailedStatus = () => {
     const p = parseInt(attendance.present);
     const t = parseInt(attendance.total);
-    if (!p || !t) return "Enter details to check status";
+    const target = 75; // Criteria
+
+    if (!p || !t || t === 0) return { msg: "Enter details to check", color: "text-slate-500", bg: "bg-slate-50" };
+    
     const perc = (p / t) * 100;
-    return perc >= 75 ? `🔥 ${perc.toFixed(1)}% - You are safe!` : `⚠️ ${perc.toFixed(1)}% - Shortage alert!`;
+
+    if (perc >= target) {
+      // Kitne bunk kar sakte hain?
+      const canBunk = Math.floor((p - (target / 100) * t) / (target / 100));
+      return { 
+        msg: `🔥 ${perc.toFixed(1)}% - Safe! (You can bunk ${canBunk} more)`, 
+        color: "text-green-700", 
+        bg: "bg-green-50" 
+      };
+    } else {
+      // Kitni aur attend karni hongi?
+      const req = Math.ceil((target * t - 100 * p) / (100 - target));
+      return { 
+        msg: `⚠️ ${perc.toFixed(1)}% - Attend next ${req} classes!`, 
+        color: "text-red-700", 
+        bg: "bg-red-50" 
+      };
+    }
   };
+
+  const status = getDetailedStatus();
 
   return (
     <div className={`flex min-h-screen ${darkMode ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-900'}`}>
-      {/* Sidebar yahan dikhega */}
       <Sidebar />
-
       <div className="flex-1 p-6 lg:p-10 overflow-y-auto">
-        {/* Header */}
         <header className="flex justify-between items-center mb-10">
           <div>
             <h2 className="text-3xl font-bold">Main Dashboard 👋</h2>
@@ -36,7 +55,7 @@ const Dashboard = () => {
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* 1. Quick Attendance Card */}
+          {/* Quick Attendance Card - UPDATED */}
           <div className={`p-8 rounded-[2.5rem] shadow-xl border ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100'}`}>
             <div className="flex items-center gap-3 mb-6">
               <div className="p-3 bg-indigo-100 rounded-2xl text-indigo-600">
@@ -45,25 +64,27 @@ const Dashboard = () => {
               <h3 className="font-bold text-xl">Attendance Tracker</h3>
             </div>
             <div className="space-y-4">
-              <input 
-                type="number" 
-                placeholder="Classes Attended" 
-                className="w-full p-4 bg-slate-50 border rounded-2xl outline-none text-slate-900"
-                onChange={(e) => setAttendance({ ...attendance, present: e.target.value })}
-              />
-              <input 
-                type="number" 
-                placeholder="Total Classes" 
-                className="w-full p-4 bg-slate-50 border rounded-2xl outline-none text-slate-900"
-                onChange={(e) => setAttendance({ ...attendance, total: e.target.value })}
-              />
-              <div className="mt-4 p-4 bg-indigo-50 rounded-2xl text-indigo-700 font-bold text-center">
-                {getBriefStatus()}
+              <div className="grid grid-cols-2 gap-4">
+                <input 
+                  type="number" 
+                  placeholder="Attended" 
+                  className="w-full p-4 bg-slate-50 border rounded-2xl outline-none text-slate-900"
+                  onChange={(e) => setAttendance({ ...attendance, present: e.target.value })}
+                />
+                <input 
+                  type="number" 
+                  placeholder="Total" 
+                  className="w-full p-4 bg-slate-50 border rounded-2xl outline-none text-slate-900"
+                  onChange={(e) => setAttendance({ ...attendance, total: e.target.value })}
+                />
+              </div>
+              <div className={`mt-4 p-5 rounded-2xl font-bold text-center transition-all ${status.bg} ${status.color}`}>
+                {status.msg}
               </div>
             </div>
           </div>
 
-          {/* 2. AI Chatbot Card */}
+          {/* AI Chatbot Card */}
           <div className={`p-8 rounded-[2.5rem] shadow-xl border ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100'}`}>
             <div className="flex items-center gap-3 mb-6">
               <div className="p-3 bg-green-100 rounded-2xl text-green-600">
