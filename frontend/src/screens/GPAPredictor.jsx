@@ -8,41 +8,60 @@ const GPAPredictor = () => {
   const [targetCpi, setTargetCpi] = useState(8.0);
   const [examConfig, setExamConfig] = useState({ m1Max: 30, m2Max: 70 });
   
-  const [input, setInput] = useState({ name: '', credits: '4', m1: '' });
+  // ✅ FIXED: Initial values empty rakhi hain taaki placeholder dikhe
+  const [input, setInput] = useState({ name: '', credits: '', m1: '' });
 
   const API_URL = import.meta.env.VITE_API_URL || 'https://student-mate-backend.onrender.com';
+
+  // Axios Header Configuration
+  const getAuthHeader = () => {
+    const token = localStorage.getItem('token');
+    return { headers: { Authorization: `Bearer ${token}` } };
+  };
 
   useEffect(() => { fetchSubjects(); }, []);
 
   const fetchSubjects = async () => {
     try {
-      const res = await axios.get(`${API_URL}/api/subjects`);
-      // Initializing simulated 'm2' (End-term) marks as 0 for all subjects
+      const res = await axios.get(`${API_URL}/api/subjects`, getAuthHeader());
       setSubjects(res.data.map(s => ({ ...s, m2Simulated: 0 })));
-    } catch (err) { console.error("Fetch Error:", err); }
+    } catch (err) { 
+      console.error("Fetch Error:", err);
+    }
   };
 
   const addSubject = async () => {
-    if (!input.name || !input.m1) return alert("Subject aur Mid-marks bharo!");
+    // ✅ FIXED: Logic validation
+    if (!input.name || !input.m1 || !input.credits) {
+      return alert("Bhai Subject, Mid marks aur Credits teeno bharo!");
+    }
+
     try {
       const res = await axios.post(`${API_URL}/api/subjects`, {
         name: input.name,
         credits: input.credits,
         m1Obtained: input.m1
-      });
+      }, getAuthHeader());
+
+      // ✅ FIXED: Immediate list update
       setSubjects([...subjects, { ...res.data, m2Simulated: 0 }]);
-      setInput({ name: '', credits: '4', m1: '' });
-    } catch (err) { console.error("Add Error:", err); }
+      
+      // ✅ FIXED: Clear form after adding
+      setInput({ name: '', credits: '', m1: '' });
+      
+    } catch (err) { 
+      console.error("Add Error:", err);
+      alert("Subject add nahi ho paya. Backend check karo!");
+    }
   };
 
   const deleteSubject = async (id) => {
     try {
-      await axios.delete(`${API_URL}/api/subjects/${id}`);
+      await axios.delete(`${API_URL}/api/subjects/${id}`, getAuthHeader());
       setSubjects(subjects.filter(s => s._id !== id));
     } catch (err) { console.error("Delete Error:", err); }
   };
 
-  // 🎯 REAL-TIME CPI CALCULATION
   const calculateSimulatedCPI = () => {
     let totalPoints = 0;
     let totalCredits = 0;
@@ -52,7 +71,6 @@ const GPAPredictor = () => {
       const totalMax = examConfig.m1Max + examConfig.m2Max;
       const percentage = (totalMarks / totalMax) * 100;
 
-      // Grade Logic (Standard University)
       let gp = percentage >= 90 ? 10 : percentage >= 80 ? 9 : percentage >= 70 ? 8 : 
                percentage >= 60 ? 7 : percentage >= 50 ? 6 : percentage >= 40 ? 5 : 0;
       
@@ -112,13 +130,27 @@ const GPAPredictor = () => {
           <div className="xl:col-span-1 bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-50 h-fit">
             <h3 className="font-black text-xl mb-6 flex items-center gap-2"> <Plus size={20} className="text-indigo-600"/> Add Subject</h3>
             <div className="space-y-4">
-              <input placeholder="Subject Name" className="w-full p-4 bg-slate-50 rounded-2xl outline-none font-bold" 
-                value={input.name} onChange={e => setInput({...input, name: e.target.value})} />
+              <input 
+                placeholder="Subject Name" 
+                className="w-full p-4 bg-slate-50 rounded-2xl outline-none font-bold" 
+                value={input.name} 
+                onChange={e => setInput({...input, name: e.target.value})} 
+              />
               <div className="grid grid-cols-2 gap-3">
-                <input type="number" placeholder="Mid Marks" className="w-full p-4 bg-slate-50 rounded-2xl outline-none" 
-                  value={input.m1} onChange={e => setInput({...input, m1: e.target.value})} />
-                <input type="number" placeholder="Credits" className="w-full p-4 bg-slate-50 rounded-2xl outline-none" 
-                  value={input.credits} onChange={e => setInput({...input, credits: e.target.value})} />
+                <input 
+                  type="number" 
+                  placeholder="Mid Marks" 
+                  className="w-full p-4 bg-slate-50 rounded-2xl outline-none" 
+                  value={input.m1} 
+                  onChange={e => setInput({...input, m1: e.target.value})} 
+                />
+                <input 
+                  type="number" 
+                  placeholder="Credits" 
+                  className="w-full p-4 bg-slate-50 rounded-2xl outline-none" 
+                  value={input.credits} 
+                  onChange={e => setInput({...input, credits: e.target.value})} 
+                />
               </div>
               <button onClick={addSubject} className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black hover:bg-indigo-600 transition-all">Add to List</button>
             </div>
@@ -144,7 +176,7 @@ const GPAPredictor = () => {
                         <p className="text-[10px] text-slate-400 font-bold">{sub.credits} Credits</p>
                       </td>
                       <td className="p-6 text-center font-bold text-slate-600">{sub.m1Obtained}</td>
-                      <td className="p-6">
+                      <td className="p-6 text-center">
                         <div className="flex items-center gap-4 justify-center">
                           <input 
                             type="range" min="0" max={examConfig.m2Max} 
