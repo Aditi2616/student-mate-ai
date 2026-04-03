@@ -227,11 +227,13 @@ const GPAPredictor = () => {
   const [subjects, setSubjects] = useState([]);
   const [targetCpi, setTargetCpi] = useState(8.0);
   const [examConfig, setExamConfig] = useState({ m1Max: 30, m2Max: 45 });
+  
+  // ✅ FIXED: Initial values empty for better placeholder visibility
   const [input, setInput] = useState({ name: '', credits: '', m1: '' });
 
   const API_URL = import.meta.env.VITE_API_URL || 'https://student-mate-backend.onrender.com';
 
-  // Axios Header for Safety
+  // Axios Header Configuration for Secure Requests
   const getAuthHeader = () => {
     const token = localStorage.getItem('token');
     return { headers: { Authorization: `Bearer ${token}` } };
@@ -242,124 +244,202 @@ const GPAPredictor = () => {
   const fetchSubjects = async () => {
     try {
       const res = await axios.get(`${API_URL}/api/subjects`, getAuthHeader());
+      // Initialize simulated 'm2' marks as 0 for fresh simulation
       setSubjects(res.data.map(s => ({ ...s, m2Simulated: 0 })));
-    } catch (err) { console.error("Fetch Error:", err); }
-  };
-
-  const addSubject = async () => {
-    if (!input.name || !input.m1 || !input.credits) return alert("All fields are required!");
-    try {
-      const res = await axios.post(`${API_URL}/api/subjects`, {
-        name: input.name, credits: input.credits, m1Obtained: input.m1
-      }, getAuthHeader());
-      
-      // ✅ Naya subject list mein add karo
-      setSubjects([...subjects, { ...res.data, m2Simulated: 0 }]);
-      setInput({ name: '', credits: '', m1: '' });
-    } catch (err) { console.error("Add Error:", err); }
-  };
-
-  // ✅ TARGETED DELETE: Sirf wahi ID hategi jispe click hua hai
-  const deleteSubject = async (id) => {
-    try {
-      await axios.delete(`${API_URL}/api/subjects/${id}`, getAuthHeader());
-      // State filter: Sirf wo subject rakho jiski ID match NAHI karti
-      setSubjects(prevSubjects => prevSubjects.filter(sub => sub._id !== id));
     } catch (err) { 
-      console.error("Delete Error:", err);
-      alert("Could not delete this subject.");
+      console.error("Fetch Error:", err);
     }
   };
 
+  const addSubject = async () => {
+    if (!input.name || !input.m1 || !input.credits) {
+      return alert("Please fill Name, Mid Marks, and Credits!");
+    }
+
+    try {
+      const res = await axios.post(`${API_URL}/api/subjects`, {
+        name: input.name,
+        credits: input.credits,
+        m1Obtained: input.m1
+      }, getAuthHeader());
+
+      // ✅ Update list immediately with simulated field
+      setSubjects([...subjects, { ...res.data, m2Simulated: 0 }]);
+      
+      // ✅ Clear form fields
+      setInput({ name: '', credits: '', m1: '' });
+      
+    } catch (err) { 
+      console.error("Add Error:", err);
+      alert("Failed to add subject. Please check your connection.");
+    }
+  };
+
+  const deleteSubject = async (id) => {
+    try {
+      await axios.delete(`${API_URL}/api/subjects/${id}`, getAuthHeader());
+      // ✅ Targeted Delete: Remove only the selected subject from UI
+      setSubjects(prev => prev.filter(sub => sub._id !== id));
+    } catch (err) { 
+      console.error("Delete Error:", err);
+      alert("Error removing subject.");
+    }
+  };
+
+  // 🎯 CORE LOGIC: Weighted SGPA Calculation
   const calculateSimulatedCPI = () => {
-    let totalPoints = 0, totalCredits = 0;
+    let totalPoints = 0;
+    let totalCredits = 0;
+
     subjects.forEach(sub => {
       const totalMarks = (parseFloat(sub.m1Obtained) || 0) + (parseFloat(sub.m2Simulated) || 0);
-      const percentage = (totalMarks / (examConfig.m1Max + examConfig.m2Max)) * 100;
-      let gp = percentage >= 90 ? 10 : percentage >= 80 ? 9 : percentage >= 70 ? 8 : percentage >= 60 ? 7 : percentage >= 50 ? 6 : percentage >= 40 ? 5 : 0;
+      const totalMax = examConfig.m1Max + examConfig.m2Max;
+      const percentage = (totalMarks / totalMax) * 100;
+
+      // Grade Point Mapping (O=10, A+=9, etc.)
+      let gp = percentage >= 90 ? 10 : percentage >= 80 ? 9 : percentage >= 70 ? 8 : 
+               percentage >= 60 ? 7 : percentage >= 50 ? 6 : percentage >= 40 ? 5 : 0;
+      
       totalPoints += (gp * parseFloat(sub.credits));
       totalCredits += parseFloat(sub.credits);
     });
+
     return totalCredits > 0 ? (totalPoints / totalCredits).toFixed(2) : "0.00";
   };
+
+  const currentCPI = calculateSimulatedCPI();
 
   return (
     <div className="flex min-h-screen bg-slate-50 font-sans text-slate-900">
       <Sidebar />
       <div className="flex-1 p-8">
-        {/* Header Cards (SGPA, Weightage, Target) */}
+        
+        {/* HEADER ANALYTICS */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-indigo-600 p-8 rounded-[2.5rem] text-white shadow-xl flex justify-between items-center">
-            <div><p className="text-[10px] font-black opacity-60 uppercase tracking-widest">SGPA</p><h2 className="text-6xl font-black">{calculateSimulatedCPI()}</h2></div>
+            <div>
+              <p className="text-[10px] font-black opacity-60 uppercase tracking-widest">Predicted SGPA</p>
+              <h2 className="text-6xl font-black">{currentCPI}</h2>
+            </div>
             <Calculator size={50} className="opacity-20" />
           </div>
-          <div className="bg-white p-8 rounded-[2.5rem] border flex items-center justify-between shadow-sm">
-            <div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Weightage</p>
-            <p className="font-bold text-slate-600 text-lg">Mid: {examConfig.m1Max} | End: {examConfig.m2Max}</p></div>
+
+          <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 flex flex-col justify-center shadow-sm">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Weightage Model</p>
+            <div className="flex gap-4">
+              <div className="flex-1">
+                <label className="text-[9px] font-bold text-indigo-500">MID MAX</label>
+                <input type="number" className="w-full font-bold bg-slate-50 p-2 rounded-lg outline-none" 
+                  value={examConfig.m1Max} onChange={e => setExamConfig({...examConfig, m1Max: parseInt(e.target.value)})}/>
+              </div>
+              <div className="flex-1">
+                <label className="text-[9px] font-bold text-orange-500">END MAX</label>
+                <input type="number" className="w-full font-bold bg-slate-50 p-2 rounded-lg outline-none" 
+                  value={examConfig.m2Max} onChange={e => setExamConfig({...examConfig, m2Max: parseInt(e.target.value)})}/>
+              </div>
+            </div>
           </div>
-          <div className="bg-white p-8 rounded-[2.5rem] border flex items-center gap-5 shadow-sm">
-             <div className={`p-4 rounded-3xl ${calculateSimulatedCPI() >= targetCpi ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}><TrendingUp size={30} /></div>
-             <div><p className="text-[10px] font-black text-slate-400 uppercase">Goal: {targetCpi}</p><h4 className="text-xl font-black">{calculateSimulatedCPI() >= targetCpi ? "Met! 🎉" : "Work Hard"}</h4></div>
+
+          <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 flex items-center gap-5 shadow-sm">
+             <div className={`p-4 rounded-3xl ${currentCPI >= targetCpi ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
+                <TrendingUp size={30} />
+             </div>
+             <div>
+                <p className="text-[10px] font-black text-slate-400 uppercase">Target: {targetCpi}</p>
+                <h4 className="text-xl font-black">{currentCPI >= targetCpi ? "Target Met! 🚀" : "Keep Improving"}</h4>
+             </div>
           </div>
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-4 gap-8">
-          {/* Add Subject Form */}
-          <div className="xl:col-span-1 bg-white p-8 rounded-[2.5rem] shadow-lg border h-fit">
-            <h3 className="font-black text-xl mb-6 flex items-center gap-2"><Plus size={20} className="text-indigo-600"/> Add Subject</h3>
+          {/* LEFT: ENTRY FORM */}
+          <div className="xl:col-span-1 bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-50 h-fit">
+            <h3 className="font-black text-xl mb-6 flex items-center gap-2"> <Plus size={20} className="text-indigo-600"/> Add Record</h3>
             <div className="space-y-4">
-              <input placeholder="Subject Name" className="w-full p-4 bg-slate-50 rounded-2xl outline-none font-bold border focus:border-indigo-300" value={input.name} onChange={e => setInput({...input, name: e.target.value})} />
-              <input type="number" placeholder="Mid Marks" className="w-full p-4 bg-slate-50 rounded-2xl outline-none border focus:border-indigo-300" value={input.m1} onChange={e => setInput({...input, m1: e.target.value})} />
-              <input type="number" placeholder="Credits" className="w-full p-4 bg-slate-50 rounded-2xl outline-none border focus:border-indigo-300" value={input.credits} onChange={e => setInput({...input, credits: e.target.value})} />
-              <button onClick={addSubject} className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black hover:bg-indigo-600 transition-all shadow-md active:scale-95">Add to List</button>
+              <input 
+                placeholder="Subject Name" 
+                className="w-full p-4 bg-slate-50 rounded-2xl outline-none font-bold border focus:border-indigo-200" 
+                value={input.name} 
+                onChange={e => setInput({...input, name: e.target.value})} 
+              />
+              <div className="grid grid-cols-2 gap-3">
+                <input 
+                  type="number" 
+                  placeholder="Mid Score" 
+                  className="w-full p-4 bg-slate-50 rounded-2xl outline-none border focus:border-indigo-200" 
+                  value={input.m1} 
+                  onChange={e => setInput({...input, m1: e.target.value})} 
+                />
+                <input 
+                  type="number" 
+                  placeholder="Credits" 
+                  className="w-full p-4 bg-slate-50 rounded-2xl outline-none border focus:border-indigo-200" 
+                  value={input.credits} 
+                  onChange={e => setInput({...input, credits: e.target.value})} 
+                />
+              </div>
+              <button onClick={addSubject} className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black hover:bg-indigo-600 transition-all shadow-lg active:scale-95">Add to Analysis</button>
             </div>
           </div>
 
-          {/* Simulation Table with Specific Delete */}
-          <div className="xl:col-span-3 bg-white rounded-[2.5rem] shadow-sm border p-6 overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="border-b border-slate-100">
-                  <th className="p-4 text-[10px] font-black text-slate-400 uppercase">Subject</th>
-                  <th className="p-4 text-[10px] font-black text-slate-400 uppercase text-center">Mid (30)</th>
-                  <th className="p-4 text-[10px] font-black text-indigo-500 uppercase text-center">Simulate End (45)</th>
-                  <th className="p-4 text-[10px] font-black text-slate-400 uppercase text-center">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {subjects.map((sub, index) => (
-                  <tr key={sub._id} className="hover:bg-slate-50/50 transition-all group">
-                    <td className="p-4">
-                      <p className="font-black text-slate-700 uppercase">{sub.name}</p>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{sub.credits} Credits</p>
-                    </td>
-                    <td className="p-4 text-center font-bold text-slate-600">{sub.m1Obtained}</td>
-                    <td className="p-4">
-                      <div className="flex items-center gap-4 justify-center">
-                        <input type="range" min="0" max={examConfig.m2Max} className="w-32 h-1.5 bg-indigo-100 rounded-lg appearance-none cursor-pointer accent-indigo-600" value={sub.m2Simulated} onChange={(e) => { const n = [...subjects]; n[index].m2Simulated = parseInt(e.target.value); setSubjects(n); }} />
-                        <span className="font-black text-indigo-600 bg-indigo-50 px-3 py-1 rounded-xl text-xs border border-indigo-100">{sub.m2Simulated}</span>
-                      </div>
-                    </td>
-                    <td className="p-4 text-center">
-                      {/* ✅ INDIVIDUAL DELETE BUTTON */}
-                      <button 
-                        onClick={() => deleteSubject(sub._id)} 
-                        className="p-3 bg-red-50 text-red-400 hover:text-red-600 hover:bg-red-100 rounded-2xl transition-all shadow-sm"
-                        title={`Delete ${sub.name}`}
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                    </td>
+          {/* RIGHT: INTERACTIVE SIMULATOR TABLE */}
+          <div className="xl:col-span-3">
+            <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
+              <table className="w-full text-left border-collapse">
+                <thead className="bg-slate-50 border-b border-slate-100">
+                  <tr>
+                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase">Subject Details</th>
+                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase text-center">Mid Exam</th>
+                    <th className="p-6 text-[10px] font-black text-indigo-500 uppercase text-center">Simulate End-Sem</th>
+                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase text-center">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-            {subjects.length === 0 && (
-              <div className="p-16 text-center text-slate-300">
-                <AlertCircle className="mx-auto mb-2 opacity-20" size={40} />
-                <p className="font-bold">List is empty. Add subjects to simulate SGPA!</p>
-              </div>
-            )}
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {subjects.map((sub, index) => (
+                    <tr key={sub._id} className="hover:bg-slate-50/50 transition-all group">
+                      <td className="p-6">
+                        <p className="font-black text-slate-700 uppercase tracking-tighter">{sub.name}</p>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase">{sub.credits} Credits</p>
+                      </td>
+                      <td className="p-6 text-center font-bold text-slate-600">
+                        <span className="bg-slate-100 px-3 py-1 rounded-lg">{sub.m1Obtained}</span>
+                      </td>
+                      <td className="p-6">
+                        <div className="flex items-center gap-4 justify-center">
+                          <input 
+                            type="range" min="0" max={examConfig.m2Max} 
+                            className="w-32 h-1.5 bg-indigo-100 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                            value={sub.m2Simulated} 
+                            onChange={(e) => {
+                              const newSubs = [...subjects];
+                              newSubs[index].m2Simulated = parseInt(e.target.value);
+                              setSubjects(newSubs);
+                            }}
+                          />
+                          <span className="min-w-[45px] font-black text-indigo-600 bg-indigo-50 border border-indigo-100 px-3 py-1 rounded-xl text-xs text-center">
+                            {sub.m2Simulated}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="p-6 text-center">
+                        <button 
+                          onClick={() => deleteSubject(sub._id)} 
+                          className="p-3 bg-red-50 text-red-400 hover:text-red-600 hover:bg-red-100 rounded-2xl transition-all shadow-sm"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {subjects.length === 0 && (
+                <div className="p-20 text-center text-slate-300">
+                   <AlertCircle className="mx-auto mb-2 opacity-20" size={48} />
+                   <p className="font-bold uppercase tracking-widest text-xs">No records found. Start adding subjects!</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
