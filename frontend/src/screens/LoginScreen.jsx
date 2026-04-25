@@ -18,7 +18,6 @@ export default function LoginScreen() {
   const [formData, setFormData] = useState({ fullName: '', email: '', password: '' });
 
   const navigate = useNavigate();
-  // useAuth() se context nikal rahe hain
   const auth = useAuth(); 
   const login = auth?.login;
   const register = auth?.register;
@@ -109,21 +108,11 @@ export default function LoginScreen() {
             <span className="text-indigo-600 italic">Simplified.</span>
           </h1>
           <p className="text-slate-500 text-lg max-w-md font-medium leading-relaxed">
-            The ultimate AI assistant for GLA students. Track attendance, 
+            The ultimate AI assistant for students. Track attendance, 
             calculate CPI, and solve doubts instantly.
           </p>
           
-          <div className="flex items-center gap-12 pt-8">
-            <div>
-              <h3 className="text-3xl font-black text-slate-900">100%</h3>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Secure</p>
-            </div>
-            <div className="h-10 w-[1px] bg-slate-100"></div>
-            <div>
-              <h3 className="text-3xl font-black text-slate-900">AI</h3>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Powered</p>
-            </div>
-          </div>
+          {/* Correction: Secured & AI Powered stats removed */}
         </div>
 
         {/* Right Side: Auth Card */}
